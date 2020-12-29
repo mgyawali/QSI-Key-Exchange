@@ -1,0 +1,76 @@
+q := 65521;
+K := GF(q);
+m := 5;
+
+
+N := Binomial(3+m, 3)-1;
+
+// Automorphism of P^N
+repeat
+    A := RandomMatrix(K, N+1, N+1);
+until Determinant(A) ne 0;
+
+// secret automorphism
+repeat
+    S := RandomMatrix(K, 4, 4);
+until Determinant(S) ne 0;
+
+// Compute embedding 1
+R2<X0, X1, Y0, Y1> := PolynomialRing(K, 4);
+pols := [Evaluate(mon, Eltseq(ChangeRing(S, R2)*Matrix(R2, 4, 1, [X0*Y0, X0*Y1, X1*Y0, X1*Y1]))) : mon in MonomialsOfDegree(R2, m)];
+
+
+MS := A * Matrix(K, N+1, (m+1)*(m+1),
+		 &cat[[ Coefficient(Coefficient(Coefficient(Coefficient(pols[i], X0, j1), X1, m-j1), Y0, j2), Y1, m-j2) :
+		    j1, j2 in [0..m]] : i in [1..N+1]]);
+
+// Random kernel hyperplane
+v1 := Random(Kernel(MS));
+
+
+// Compute embedding 2
+repeat
+    S := RandomMatrix(K, 4, 4);
+until Determinant(S) ne 0;
+
+pols := [Evaluate(mon, Eltseq(ChangeRing(S, R2)*Matrix(R2, 4, 1, [X0*Y0, X0*Y1, X1*Y0, X1*Y1]))) : mon in MonomialsOfDegree(R2, m)];
+
+MS := A * Matrix(K, N+1, (m+1)*(m+1),
+		 &cat[[ Coefficient(Coefficient(Coefficient(Coefficient(pols[i], X0, j1), X1, m-j1), Y0, j2), Y1, m-j2) :
+		    j1, j2 in [0..m]] : i in [1..N+1]]);
+
+// Random kernel hyperplane
+v2 := Random(Kernel(MS));
+
+
+/*********** Construction of the problem *******/
+
+R := PolynomialRing(K, N+1, "grevlex");
+
+lM := Setseq(MonomialsOfDegree(R2, m));
+// equations for Veronese variety
+E := { [m1, m2, m3, m4] : m1, m2, m3, m4 in lM | m1*m2 eq m3*m4 };
+
+eq_Veronese := [R.i1*R.i2 - R.i3*R.i4
+		where i1 is Index(lM, e[1])
+		where i2 is Index(lM, e[2])
+		where i3 is Index(lM, e[3])
+		where i4 is Index(lM, e[4])
+		: e in E];
+
+// quadratic equations for the hidden Veronese variety
+eq_Veronese_shifted := [ Evaluate(f, Eltseq(ChangeRing(A^(-1), R)*Matrix(R, N+1, 1, [R.i : i in [1..N+1]]))) : f in eq_Veronese ];
+
+// Degree(Ideal(eq_Veronese_shifted));
+// Verification
+
+I := Ideal(eq_Veronese_shifted cat [&+[v1[i]*R.i : i in [1..N+1]], &+[v2[i]*R.i : i in [1..N]]]);
+
+I := I + Ideal([&+[Random(K)*R.i : i in [1..N]] - 1 : j in [1..2]]);
+//dehomogenization + extra general hyperplane
+
+SetVerbose("Groebner", 1);
+time G := GroebnerBasis(I);
+Dimension(I);
+Dimension(R/I); // should be equal to m^3
+
